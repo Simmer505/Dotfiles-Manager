@@ -1,23 +1,33 @@
 use std::fs;
 use std::path::PathBuf;
 use std::env;
+use clap::{Arg, Command, ArgAction};
 
 fn main() {
-/*   let configs = vec![
-        Config::new("laptop/sway/config", "/home/eesim/.config/sway/config"),
-        Config::new("laptop/nvim/init.lua", "/home/eesim/.config/nvim/init.lua"),
-        Config::new("laptop/nvim/lua/config", "/home/eesim/.config/nvim/lua/config"),
-        Config::new("laptop/alacritty/alacritty.toml", "/home/eesim/.config/alacritty/alacritty.toml"),
-        Config::new("laptop/rofi/config.rasi", "/home/eesim/.config/rofi/config.rasi")
+
+    let matches = Command::new("dotfiles")
+        .version("0.1")
+        .author("Ethan Simmons")
+        .about("Manages dotfiles")
+        .arg(Arg::new("from-git")
+            .short('g')
+            .long("from-git")
+            .action(ArgAction::SetTrue)
+        )
+        .get_matches();
+
+   let configs = vec![
+        Config::new("desktop/sway/config", "/home/eesim/.config/sway/config"),
+        Config::new("desktop/nvim/init.lua", "/home/eesim/.config/nvim/init.lua"),
+        Config::new("desktop/nvim/lua/config", "/home/eesim/.config/nvim/lua/config"),
+        Config::new("desktop/alacritty/alacritty.toml", "/home/eesim/.config/alacritty/alacritty.toml"),
+        Config::new("desktop/rofi/config.rasi", "/home/eesim/.config/rofi/config.rasi")
     ];
-*/
 
-    let configs = vec!(Config::new("laptop/rofi/config.rasi", "/home/eesim/.config/rofi/config.rasi"));
 
-    let _dirs = configs.iter().filter(|config| config.is_dir);
-    let files  = configs.iter().filter(|config| !config.is_dir);
+    let copy_to_sys = matches.get_flag("from-git");
 
-    files.for_each(|config| copy_file(&config, true));
+    configs.iter().for_each(|config| copy_config(&config, copy_to_sys));
 
 }
 
@@ -42,10 +52,51 @@ impl Config {
     }
 }
 
-fn copy_file(config: &Config, to_sys: bool) {
-    if to_sys {
-        let _ = fs::copy(&config.git_location, &config.sys_location); 
+
+fn copy_config(config: &Config, to_sys: bool) {
+    if !config.is_dir {
+        if to_sys {
+            let _ = fs::copy(&config.git_location, &config.sys_location); 
+        } else {
+            let _ = fs::copy(&config.sys_location, &config.git_location);
+        }
     } else {
-        let _ = fs::copy(&config.sys_location, &config.git_location);
+        let (dir, dest) = if to_sys {
+            (&config.git_location, &config.sys_location)
+        } else {
+            (&config.sys_location, &config.git_location)
+        };
+
+        println!("Starting Copy Dir");
+        copy_directory(&dir, &dest)
     }
+}
+
+fn copy_directory(dir_path: &PathBuf, dest_path: &PathBuf) {
+
+    let dir = fs::read_dir(&dir_path).unwrap();
+
+    let entries: Vec<_> = dir.map(|entry| entry.unwrap()).collect();
+
+    let files = entries.iter().filter(|entry| entry.metadata().unwrap().is_file());
+    let dirs = entries.iter().filter(|entry| entry.metadata().unwrap().is_dir());
+
+    files.for_each(|file| {
+        let file_path = dir_path.join(file.file_name());
+        let dest_path = dest_path.join(file.file_name());
+
+        let _ = fs::copy(file_path, dest_path);
+
+        println!("Copying file");
+    });
+
+    dirs.for_each(|dir| {
+        let current_dir_path = dir_path.join(dir.file_name());
+        let dest_path = dest_path.join(dir.file_name());
+
+        println!("Copying dir");
+        copy_directory(&current_dir_path, &dest_path);
+
+    });
+
 }
