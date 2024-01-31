@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 clap='4.4.*'
+toml='0.8.*'
