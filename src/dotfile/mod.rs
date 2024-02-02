@@ -5,14 +5,14 @@ use std::fs;
 
 use crate::copy_directory;
 
-pub struct ConfigFile {
+pub struct Dotfile {
     pub manager_path: PathBuf,
     pub system_path: PathBuf,
     is_dir: bool,
 }
 
 
-impl ConfigFile {
+impl Dotfile {
     pub fn new(rel_git_location: PathBuf, sys_location: PathBuf) -> Result<Self, Box<dyn Error>> {
 
         let home_dir = PathBuf::from(env::var("HOME").expect("$HOME not set"));
@@ -26,15 +26,31 @@ impl ConfigFile {
 
         let is_dir = match (manager_path_data, sys_path_data) {
             (Ok(manager_data), Ok(sys_data)) => manager_data.is_dir() && sys_data.is_dir(),
-            (Ok(manager_data), Err(_)) => manager_data.is_dir(),
-            (Err(_), Ok(sys_data)) => sys_data.is_dir(),
+            (Ok(manager_data), Err(_)) => {
+                if manager_data.is_dir() {
+                    let _ = fs::create_dir_all(&system_path);
+                    true
+                } else {
+                    let _ = fs::create_dir_all(&system_path.parent().unwrap());
+                    false
+                }
+            },
+            (Err(_), Ok(sys_data)) =>  {
+                if sys_data.is_dir() {
+                    let _ = fs::create_dir_all(&manager_path);
+                    true
+                } else {
+                    let _ = fs::create_dir_all(&manager_path.parent().unwrap());
+                    false
+                }
+            },
             (Err(e1), Err(e2)) => panic!("Neither {} nor {} exists or is readable: {}, {}", manager_path.to_str().unwrap(), system_path.to_str().unwrap(), e1, e2),
         };
 
         Ok(Self { manager_path, system_path, is_dir })
     }
 
-    pub fn copy_config(&self, to_sys: bool) -> Result<(), Box<dyn Error>> {
+    pub fn copy_dotfile(&self, to_sys: bool) -> Result<(), Box<dyn Error>> {
 
         let (curr, dest) = if to_sys {
             (&self.manager_path, &self.system_path)

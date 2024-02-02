@@ -3,11 +3,11 @@ use std::path::{self, PathBuf};
 use std::error::Error;
 use clap::ArgMatches;
 
-pub mod config_file;
-pub mod program_config;
+pub mod config;
+pub mod dotfile;
 pub mod args;
 
-use program_config::ProgramConfig;
+use config::Config;
 
 fn copy_directory(dir_path: &PathBuf, dest_path: &PathBuf) -> Result<(), Box<dyn Error>> {
 
@@ -50,24 +50,23 @@ fn copy_directory(dir_path: &PathBuf, dest_path: &PathBuf) -> Result<(), Box<dyn
 
 
 
-pub fn run(args: ArgMatches, program_config: ProgramConfig) -> Result<(), Box<dyn Error>> {
+pub fn run(args: ArgMatches, config: Config) -> Result<(), Box<dyn Error>> {
 
-    let configs = program_config.configs;
+    let dotfiles = config.dotfiles;
 
     let copy_to_sys = args.get_flag("from-git");
 
-    let copy_results = configs.iter().map(|config| (config.copy_config(copy_to_sys), config));
+    let copy_results = dotfiles.iter().map(|dotfile| (dotfile.copy_dotfile(copy_to_sys), dotfile));
 
     copy_results.for_each(|result| {
         if let Err(e) = result.0 {
-            let failed_config = result.1;
+            let failed_dotfile = result.1;
 
             if copy_to_sys {
-                println!("Faled to copy {}, with error: {}", failed_config.manager_path.to_str().expect("Error printing error"), e);
+                println!("Faled to copy {}, with error: {}", failed_dotfile.manager_path.to_str().expect("Error printing error"), e);
             }
         }
     });
 
     Ok(())
 }
-
