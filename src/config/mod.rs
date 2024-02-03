@@ -10,16 +10,16 @@ use crate::dotfile::Dotfile;
 
 pub struct Config {
     pub manager_dir: PathBuf,
-    pub dotfiles: Vec<Result<Dotfile, Box<dyn Error>>>,
+    pub dotfiles: Vec<Result<Dotfile, ConfigParseError>>,
 }
 
 
 impl Config {
-    pub fn parse(path: PathBuf) -> Result<Self, Box<dyn Error>> {
+    pub fn parse(path: PathBuf) -> Result<Self, ConfigParseError> {
 
-        let config_file = Config::read_config(path)?;
+        let config_file = Config::read_config(path).unwrap();
 
-        let dotfiles = Config::get_dotfiles(&config_file)?;
+        let dotfiles = Config::get_dotfiles(&config_file).unwrap();
 
         let manager_dir = Config::get_manager_dir(&config_file);
 
@@ -27,7 +27,7 @@ impl Config {
     }
 
 
-    fn read_config(path: PathBuf) -> Result<Table, Box<dyn Error>> {
+    fn read_config(path: PathBuf) -> Result<Table, ConfigParseError> {
 
         let file = fs::read(path)?;
 
@@ -40,18 +40,18 @@ impl Config {
     }
 
 
-    fn get_dotfiles(config: &Table) -> Result<Vec<Result<Dotfile, Box<dyn Error>>>, Box<dyn Error>> {
+    fn get_dotfiles(config: &Table) -> Result<Vec<Result<Dotfile, ConfigParseError>>, ConfigParseError> {
 
         let read_dotfiles = config.get("dotfiles");
         
         let dotfiles = match read_dotfiles {
             Some(dotfiles) => dotfiles,
-            None => return Err(Config::produce_error(1)),
+            None => return Err(ConfigParseError::DotfilesParseError),
         };
 
         let dotfile_iter = match dotfiles.as_array() {
             Some(dotfiles) => dotfiles.iter(), 
-            None => return Err(Config::produce_error(2)),
+            None => return Err(ConfigParseError::DotfilesArrayParseError),
         };
 
 
@@ -62,18 +62,18 @@ impl Config {
                 let manager_path = PathBuf::from(
                     match dotfile_table.get("manager_path") {
                         Some(path) => path.as_str().expect("Invalid character in dotfile path"),
-                        None => return Err(Config::produce_error(3)),
+                        None => return Err(ConfigParseError::DotfilesTableParseError),
                     }
                 );
 
                 let system_path = PathBuf::from(
                     match dotfile_table.get("system_path") {
                         Some(path) => path.as_str().expect("Invalid character in dotfile path"),
-                        None => return Err(Config::produce_error(3)),
+                        None => return Err(ConfigParseError::DotfilesTableParseError),
                     }
                 );
 
-                Dotfile::new(manager_path, system_path) 
+                Ok(Dotfile::new(manager_path, system_path)?)
         });
 
         Ok(dotfiles.collect())
@@ -92,57 +92,71 @@ impl Config {
         manager_dir
     }
 
-
-    fn produce_error(code: usize) -> Box<dyn Error> {
-        let error = match code {
-            1 => ConfigParseError {
-                    code: 1,
-                    message: String::from("No dotfiles section in config"),
-                    },
-            2 => ConfigParseError {
-                    code: 2,
-                    message: String::from("Dotfiles is not a valid config"),
-                },
-            3 => ConfigParseError {
-                code: 3,
-                message: String::from("A dotfile section in config is not valid"),
-            },
-            _ => ConfigParseError {
-                code: 99,
-                message: String::from("Error parsing config"),
-            }
-        };
-
-        Box::new(error)
-    }
 }
 
-struct ConfigParseError {
-    code: usize,
-    message: String,
+
+
+#[derive(Debug)]
+pub enum ConfigParseError {
+    FileReadError(std::io::Error),
+    FromUtfError(std::string::FromUtf8Error),
+    TomlParseError(toml::de::Error),
+    DotfilesParseError,
+    DotfilesArrayParseError,
+    DotfilesTableParseError,
+    DotfilesCreateError(Box<dyn Error>),
 }
 
 impl Error for ConfigParseError {}
 
 impl fmt::Display for ConfigParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let err = match self.code{
-            1 => "No dotfiles section in config",
-            2 => "Dotfiles section in config is not a valid array, Hint: Use [[dotfiles]]",
-            3 => "A dotfile section in config is not valid",
-            _ => "Error parsing config",
-        };
-
-        write!(f, "{}", err)
+        match self {
+            ConfigParseError::FileReadError(io_error) => {
+                write!(f, "{}", io_error)
+            },
+            ConfigParseError::FromUtfError(utf_error) => {
+                write!(f, "{}", utf_error)
+            },
+            ConfigParseError::TomlParseError(parse_error) => {
+                write!(f, "{}", parse_error)
+            },
+            ConfigParseError::DotfilesParseError => {
+                write!(f, "Dotfiles section not found in config file")
+            },
+            ConfigParseError::DotfilesArrayParseError => {
+                write!(f, "Dotfiles is not a valid array, Hint: use [[dotfiles]]")
+            },
+            ConfigParseError::DotfilesTableParseError => {
+                write!(f, "Dotfile table is not valid")
+            },
+            ConfigParseError::DotfilesCreateError(create_error) => {
+                write!(f, "Failed to create dotfile {}", *create_error)
+            }
+        }
     }
 }
 
-impl fmt::Debug for ConfigParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "ConfigReadError {{ code: {}, message: {} }}",
-            self.code, self.message
-        )
+impl From<std::io::Error> for ConfigParseError {
+    fn from(error: std::io::Error) -> Self {
+        ConfigParseError::FileReadError(error)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for ConfigParseError {
+    fn from(error: std::string::FromUtf8Error) -> Self {
+        ConfigParseError::FromUtfError(error)
+    }
+}
+
+impl From<toml::de::Error> for ConfigParseError {
+    fn from(error: toml::de::Error) -> Self {
+        ConfigParseError::TomlParseError(error)
+    }
+}
+
+impl From<Box<dyn Error>> for ConfigParseError {
+    fn from(error: Box<dyn Error>) -> Self {
+        ConfigParseError::DotfilesCreateError(error)
     }
 }

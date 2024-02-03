@@ -15,7 +15,7 @@ dotfile
 ### Copies from manager folder
 
 ```
-dotfile -g
+dotfile -f
 ```
 
 ## Functionality
