@@ -8,15 +8,15 @@ Currently in the early prototype stage
 
 ### Copies to manager folder
 
-'''
+```
 dotfile
-'''
+```
 
 ### Copies from manager folder
 
-'''
+```
 dotfile -g
-'''
+```
 
 ## Functionality
 
@@ -35,7 +35,7 @@ dotfile -g
 
 $HOME/.config/dotfiles/config
 
-'''
+```
 # Optional
 manager_dir="Path to manager dir"                # default: "$HOME/.dotfiles"
 
@@ -49,4 +49,4 @@ manager_location="Next manager config location"
 
 ...
 
-'''
+```
