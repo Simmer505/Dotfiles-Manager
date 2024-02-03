@@ -47,16 +47,21 @@ fn copy_directory(dir_path: &PathBuf, dest_path: &PathBuf) -> Result<(), Box<dyn
 }
 
 
-
-
-
 pub fn run(args: ArgMatches, config: Config) -> Result<(), Box<dyn Error>> {
-
-    let dotfiles = config.dotfiles;
 
     let copy_to_sys = args.get_flag("from-git");
 
-    let copy_results = dotfiles.iter().map(|dotfile| (dotfile.copy_dotfile(copy_to_sys), dotfile));
+    let dotfiles = config.dotfiles;
+
+    let valid_dotfiles: Vec<_> = dotfiles.iter().filter_map(|dotfile| match dotfile {
+        Ok(dotfile) => Some(dotfile),
+        Err(e) => {
+            println!("Failed to read a dotfile: {}", e);
+            None
+        },
+    }).collect();
+
+    let copy_results = valid_dotfiles.iter().map(|dotfile| (dotfile.copy_dotfile(copy_to_sys), dotfile));
 
     copy_results.for_each(|result| {
         if let Err(e) = result.0 {
