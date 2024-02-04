@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::{self, DirEntry};
 use std::path::PathBuf;
 use std::fmt;
 use std::error::Error;
@@ -22,72 +22,76 @@ impl Directory {
             fs::create_dir_all(path)?;
         }
 
-        let dir: Vec<_> = fs::read_dir(path)?.collect();
+        let entries: Vec<_> = fs::read_dir(path)?.collect();
 
-        // Find a better way to do this sometime
-        let mut read_errors: Vec<DirError> = Vec::new();
-        let mut metadata_errors: Vec<DirError> = Vec::new();
-        let mut create_dir_errors: Vec<DirError> = Vec::new();
-        let mut create_file_errors: Vec<DirError> = Vec::new();
-
-        let entries = dir.into_iter().filter_map(|entry| match entry {
-            Ok(entry) => Some(entry),
-            Err(e) => {
-                read_errors.push(DirError::from(e));
-                None
-            }
-        });
-
-        
-        let valid_entries: Vec<_> = entries
-            .filter_map(|entry| match entry.metadata() {
-                Ok(_) => Some(entry),
-                Err(e) => {
-                    metadata_errors.push(DirError::from(e));
-                    None
+        let entries: Vec<_> = entries
+            .into_iter()
+            .map(|entry| match entry {
+                    Ok(entry) => match entry.metadata() {
+                            Ok(_) => Ok(entry),
+                            Err(e) => Err(e),
+                    },
+                    Err(e) => Err(e),
                 }
-            })
-            .collect();
+            ).collect();
+
+        let (valid_entries, io_errors): (Vec<_>, Vec<_>) = entries.into_iter().partition(|entry| entry.is_ok());
+
+        let valid_entries: Vec<_> = valid_entries.into_iter().map(|entry| entry.unwrap()).collect();
+        let io_errors = io_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
 
 
-        let directories: Vec<_> = valid_entries
-            .iter()
-            .filter_map(|entry|
-                if entry.metadata().unwrap().is_dir() {
-                    match Directory::new(&entry.path()) {
-                        Ok(dir) => Some(dir),
-                        Err(e) => {
-                            create_dir_errors.push(DirError::from(e));
-                            None
-                        },
-                    }
-            } else {
-                None
-            })
-            .collect();
+        let dirs = Directory::get_dirs(&valid_entries);
+        let (valid_dirs, dir_errors): (Vec<_>, Vec<_>) = dirs.into_iter().partition(|dir| dir.is_ok());
+
+        let directories: Vec<Directory> = valid_dirs.into_iter().map(|dir| dir.unwrap()).collect();
+        let dir_errors = dir_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
 
 
-        let files: Vec<File> = valid_entries
-            .iter()
-            .filter_map(|entry| 
-                if entry.metadata().unwrap().is_file() {
-                    match File::new(&entry.path()) {
-                        Ok(file) => Some(file),
-                        Err(e) => {
-                            create_file_errors.push(DirError::from(e));
-                            None
-                        },
-                    }
-            } else {
-                None
-            })
-            .collect();
+        let files = Directory::get_files(&valid_entries);
+        let (valid_files, file_errors): (Vec<_>, Vec<_>) = files.into_iter().partition(|file| file.is_ok());
 
-        // Fix sometime
-        let errors: Vec<DirError> = read_errors.into_iter().chain(metadata_errors.into_iter().chain(create_dir_errors.into_iter().chain(create_file_errors.into_iter()))).collect();
+        let files: Vec<File> = valid_files.into_iter().map(|file| file.unwrap()).collect();
+        let file_errors = file_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
 
+
+        let errors: Vec<DirError> = io_errors.chain(dir_errors).chain(file_errors).collect();
 
         Ok(Directory{ files, directories, path: path.to_path_buf(), errors })
+    }
+
+
+    fn get_files(entries: &Vec<DirEntry>) -> Vec<Result<File, DirError>> {
+
+        let files: Vec<_> = entries.into_iter().filter_map(|entry| match entry.metadata() {
+            Ok(data) if data.is_file() => {
+                match File::new(&entry.path()) {
+                    Ok(file) => Some(Ok(file)),
+                    Err(e) => Some(Err(DirError::from(e))),
+                }
+            },
+            Ok(_) => None,
+            Err(e) => Some(Err(DirError::from(e))),
+        }).collect();
+
+        files
+    }
+
+
+    fn get_dirs(entries: &Vec<DirEntry>) -> Vec<Result<Directory, DirError>> {
+
+        let directories: Vec<_> = entries.into_iter().filter_map(|entry| match entry.metadata() {
+            Ok(data) if data.is_dir() => {
+                match Directory::new(&entry.path()) {
+                    Ok(dir) => Some(Ok(dir)),
+                    Err(e) => Some(Err(DirError::from(e))),
+                }
+            },
+            Ok(_) => None,
+            Err(e) => Some(Err(DirError::from(e))),
+        }).collect();
+
+        directories
     }
 
 

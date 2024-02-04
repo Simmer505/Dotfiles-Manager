@@ -17,7 +17,7 @@ impl File {
         let filename = match path.file_name() {
             Some(filename) => match filename.to_str() {
                 Some(filename) => String::from(filename),
-                None => return Err(FileError::InvalidUTFError),
+                None => return Err(FileError::FilenameInvalidUTFError),
             },
             None => return Err(FileError::NoFileNameError),
         };
@@ -43,7 +43,7 @@ impl File {
 pub enum FileError {
     CopyError(std::io::Error),
     NoFileNameError,
-    InvalidUTFError,
+    FilenameInvalidUTFError,
 }
 
 impl Error for FileError {}
@@ -54,7 +54,7 @@ impl fmt::Display for FileError {
             FileError::CopyError(copy_error) => {
                 write!(f, "{}", copy_error)
             },
-            FileError::InvalidUTFError => {
+            FileError::FilenameInvalidUTFError => {
                 write!(f, "Invalild UTF in filename")
             },
             FileError::NoFileNameError => {
