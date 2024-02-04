@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::error::Error;
 
-use dotfiles_manager::args;
-use dotfiles_manager::config::Config;
+use dotfiles_manager::args::args;
+use dotfiles_manager::config::config::Config;
 
 
 fn main() -> Result<(), Box<dyn Error>> {
