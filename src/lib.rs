@@ -26,6 +26,25 @@ pub fn run(args: ArgMatches, config: cfg::Config) -> Result<(), ManagerError> {
         },
     }).collect();
 
+    let errored_dotfiles = valid_dotfiles.iter().filter_map(|dotfile| match dotfile.get_dotfile_dir_errors() {
+        errors if !errors.is_empty() => Some(dotfile),
+        _ => None
+    });
+
+    let _ = errored_dotfiles.map(|dotfile| {
+        if let dot::Dotfile::Dir(manager_dotfile) = &dotfile.manager_dotfile {
+            println!("Error copying dotfile: {}", manager_dotfile.path.to_str()?);
+            manager_dotfile.errors.iter().for_each(|error| println!("Error: {:?}", error));
+        };
+
+        if let dot::Dotfile::Dir(system_dotfile) = &dotfile.system_dotfile {
+            println!("Error copying dotfile: {}", system_dotfile.path.to_str()?);
+            system_dotfile.errors.iter().for_each(|error| println!("Error: {:?}", error));
+        };
+
+        Some(())
+    });
+
     let copy_results = valid_dotfiles.iter().map(|dotfile| (dotfile.copy_dotfile(copy_to_sys), dotfile));
 
     copy_results.for_each(|result| {

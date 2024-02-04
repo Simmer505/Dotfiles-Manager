@@ -74,6 +74,36 @@ impl ManagedDotfile {
     }
 
 
+    pub fn get_dotfile_dir_errors(&self) -> Vec<&dir::DirError> {
+
+        let manager_errors = if let Dotfile::Dir(dir) = &self.manager_dotfile {
+            Some(dir.errors.iter())
+        } else {
+            None
+        };
+
+        let system_errors = if let Dotfile::Dir(dir) = &self.system_dotfile {
+            Some(dir.errors.iter())
+        } else {
+            None
+        };
+
+        let mut errors = Vec::new();
+
+        match manager_errors {
+            Some(e) => e.for_each(|error| errors.push(error)),
+            None => (),
+        }
+
+        match system_errors {
+            Some(e) => e.for_each(|error| errors.push(error)),
+            None => (),
+        }
+
+        errors
+    }
+
+
     pub fn copy_dotfile(&self, to_sys: bool) -> Result<Vec<dir::DirError>, DotfileError> {
 
         let (current, destination) = if to_sys {

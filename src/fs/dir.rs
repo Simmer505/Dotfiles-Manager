@@ -22,38 +22,24 @@ impl Directory {
             fs::create_dir_all(path)?;
         }
 
-        let entries: Vec<_> = fs::read_dir(path)?.collect();
-
-        let entries: Vec<_> = entries
-            .into_iter()
-            .map(|entry| match entry {
-                    Ok(entry) => match entry.metadata() {
-                            Ok(_) => Ok(entry),
-                            Err(e) => Err(e),
-                    },
-                    Err(e) => Err(e),
-                }
-            ).collect();
-
-        let (valid_entries, io_errors): (Vec<_>, Vec<_>) = entries.into_iter().partition(|entry| entry.is_ok());
-
-        let valid_entries: Vec<_> = valid_entries.into_iter().map(|entry| entry.unwrap()).collect();
-        let io_errors = io_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
+        let entries = fs::read_dir(path)?;
+        let (valid_entries, io_errors): (Vec<_>, Vec<_>) = entries.partition(|entry| entry.is_ok());
+        let valid_entries: Vec<DirEntry> = valid_entries.into_iter().map(|entry| entry.unwrap()).collect();
 
 
         let dirs = Directory::get_dirs(&valid_entries);
         let (valid_dirs, dir_errors): (Vec<_>, Vec<_>) = dirs.into_iter().partition(|dir| dir.is_ok());
-
         let directories: Vec<Directory> = valid_dirs.into_iter().map(|dir| dir.unwrap()).collect();
-        let dir_errors = dir_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
 
 
         let files = Directory::get_files(&valid_entries);
         let (valid_files, file_errors): (Vec<_>, Vec<_>) = files.into_iter().partition(|file| file.is_ok());
-
         let files: Vec<File> = valid_files.into_iter().map(|file| file.unwrap()).collect();
-        let file_errors = file_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
 
+
+        let dir_errors = dir_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
+        let io_errors = io_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
+        let file_errors = file_errors.into_iter().map(|err| DirError::from(err.err().unwrap()));
 
         let errors: Vec<DirError> = io_errors.chain(dir_errors).chain(file_errors).collect();
 

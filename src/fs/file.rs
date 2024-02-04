@@ -14,6 +14,15 @@ pub struct File {
 impl File {
     pub fn new(path: &PathBuf) -> Result<File, FileError> {
 
+        let parent_dir = match path.parent() {
+            Some(parent) => parent,
+            None => return Err(FileError::NoParentDirError),
+        };
+
+        if !parent_dir.exists() {
+            fs::create_dir_all(parent_dir)?;
+        }
+
         let filename = match path.file_name() {
             Some(filename) => match filename.to_str() {
                 Some(filename) => String::from(filename),
@@ -43,6 +52,7 @@ impl File {
 pub enum FileError {
     CopyError(std::io::Error),
     NoFileNameError,
+    NoParentDirError,
     FilenameInvalidUTFError,
 }
 
@@ -57,9 +67,12 @@ impl fmt::Display for FileError {
             FileError::FilenameInvalidUTFError => {
                 write!(f, "Invalild UTF in filename")
             },
+            FileError::NoParentDirError => {
+                write!(f, "File does not have a parent directory")
+            }
             FileError::NoFileNameError => {
                 write!(f, "File does not have a valid filename")
-            }
+            },
         }
     }
 }
