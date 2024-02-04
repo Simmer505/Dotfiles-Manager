@@ -3,6 +3,7 @@ use std::error::Error;
 use std::env;
 use std::fs;
 use std::fmt;
+use std::io;
 
 use crate::fs::dir;
 use crate::fs::file;
@@ -31,33 +32,15 @@ impl ManagedDotfile {
         let manager_path = manager_dir.join(rel_git_location);
         let system_path  = sys_location;
 
-        let manager_path_data = fs::metadata(&manager_path);
-        let sys_path_data = fs::metadata(&system_path);
+        let manager_is_dir = ManagedDotfile::check_is_dir(&manager_path)?;
+        let sys_is_dir = ManagedDotfile::check_is_dir(&system_path)?;
 
-        let is_dir = match (manager_path_data, sys_path_data) {
-            (Ok(manager_data), Ok(sys_data)) => manager_data.is_dir() && sys_data.is_dir(),
 
-            (Ok(manager_data), Err(_)) => {
-                if manager_data.is_dir() {
-                    let _ = fs::create_dir_all(&system_path);
-                    true
-                } else {
-                    let _ = fs::create_dir_all(&system_path.parent().unwrap());
-                    false
-                }
-            },
-
-            (Err(_), Ok(sys_data)) =>  {
-                if sys_data.is_dir() {
-                    let _ = fs::create_dir_all(&manager_path);
-                    true
-                } else {
-                    let _ = fs::create_dir_all(&manager_path.parent().unwrap());
-                    false
-                }
-            },
-
-            (Err(e1), Err(e2)) => return Err(DotfileError::FilesDontExistError((e1, e2)))
+        let is_dir = match (manager_is_dir, sys_is_dir) {
+            (Some(sys_is_dir), Some(manager_is_dir)) if sys_is_dir && manager_is_dir => true,
+            (Some(sys_is_dirl), None) if sys_is_dirl => true,
+            (None, Some(manager_is_dir)) if manager_is_dir => true,
+            _ => false,
         };
 
         let manager_dotfile = if is_dir {
@@ -72,11 +55,26 @@ impl ManagedDotfile {
             Dotfile::File(file::File::new(&system_path)?)
         };
 
+
         Ok(Self { manager_dotfile, system_dotfile })
     }
 
 
-    pub fn copy_dotfile(&self, to_sys: bool) -> Result<(), DotfileError> {
+    fn check_is_dir(path: &PathBuf) -> Result<Option<bool>, DotfileError> {
+
+        let path_is_dir = match fs::metadata(&path) {
+            Ok(data) if data.is_dir() => Some(true),
+            Ok(_) => Some(false),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+            Err(e) => return Err(DotfileError::from(e)),
+        };
+
+        Ok(path_is_dir)
+
+    }
+
+
+    pub fn copy_dotfile(&self, to_sys: bool) -> Result<Vec<dir::DirError>, DotfileError> {
 
         let (current, destination) = if to_sys {
             (&self.manager_dotfile, &self.system_dotfile)
@@ -85,20 +83,16 @@ impl ManagedDotfile {
         };
 
 
-        if let (Dotfile::File(current_file), Dotfile::File(dest_file)) = (current, destination) {
+        let copy_results = if let (Dotfile::File(current_file), Dotfile::File(dest_file)) = (current, destination) {
             current_file.copy(&dest_file.path)?;
+            Vec::new()
+        } else if let (Dotfile::Dir(current_dir), Dotfile::Dir(dest_dir)) = (current, destination) {
+            current_dir.copy(&dest_dir.path)?
+        } else {
+            return Err(DotfileError::DotfileCopyError)
         };
 
-
-        if let (Dotfile::Dir(current_dir), Dotfile::Dir(dest_dir)) = (current, destination) {
-            let results = current_dir.copy(&dest_dir.path)?;
-
-            results.into_iter().for_each(|result| {
-                println!("Error copying directory: {}", result)
-            })
-        };
-
-        Ok(())
+        Ok(copy_results)
     }
 }
 
@@ -110,9 +104,10 @@ impl ManagedDotfile {
 pub enum DotfileError {
     DotfileIOError(std::io::Error),
     DotfileEnvError(std::env::VarError),
-    FilesDontExistError((std::io::Error, std::io::Error)),
     FileCopyError(file::FileError),
     DirectoryCopyError(dir::DirError),
+    FilesDontExistError,
+    DotfileCopyError,
 }
 
 impl Error for DotfileError {}
@@ -125,16 +120,19 @@ impl fmt::Display for DotfileError {
             },
             DotfileError::DotfileEnvError(env_error) => {
                 write!(f, "{}", env_error)
-            }
-            DotfileError::FilesDontExistError((io_error_1, io_error_2)) => {
-                write!(f, "Neither file exists: {}, {}", io_error_1, io_error_2)
-            }
+            },
             DotfileError::FileCopyError(copy_error) => {
                 write!(f, "{}", copy_error)
-            }
+            },
             DotfileError::DirectoryCopyError(copy_error) => {
                 write!(f, "{}", copy_error)
-            }
+            },
+            DotfileError::FilesDontExistError => {
+                write!(f, "Neither file exists")
+            },
+            DotfileError::DotfileCopyError => {
+                write!(f, "Failed to copy dotfile")
+            },
         }
     }
 }
@@ -148,12 +146,6 @@ impl From<std::io::Error> for DotfileError {
 impl From<std::env::VarError> for DotfileError {
     fn from(error: std::env::VarError) -> DotfileError {
         DotfileError::DotfileEnvError(error)
-    }
-}
-
-impl From<(std::io::Error, std::io::Error)> for DotfileError {
-    fn from(error: (std::io::Error, std::io::Error)) -> DotfileError {
-        DotfileError::FilesDontExistError(error)
     }
 }
 
