@@ -4,8 +4,8 @@ use std::env;
 use std::fs;
 use std::fmt;
 
-use crate::dotfile::dir;
-use crate::dotfile::file;
+use crate::fs::dir;
+use crate::fs::file;
 
 
 

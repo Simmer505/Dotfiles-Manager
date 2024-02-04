@@ -3,14 +3,16 @@ use std::fmt;
 
 use clap::ArgMatches;
 
-use crate::config::config::Config;
+use crate::config::cfg;
+use crate::dotfile::dot;
 
 pub mod config;
 pub mod dotfile;
 pub mod args;
+pub mod fs;
 
 
-pub fn run(args: ArgMatches, config: Config) -> Result<(), ManagerError> {
+pub fn run(args: ArgMatches, config: cfg::Config) -> Result<(), ManagerError> {
 
     let copy_to_sys = args.get_flag("from-git");
 
@@ -41,8 +43,8 @@ pub fn run(args: ArgMatches, config: Config) -> Result<(), ManagerError> {
 
 #[derive(Debug)]
 pub enum ManagerError {
-    DotfileCopyError(dotfile::dotfile::DotfileError),
-    ConfigParseError(config::config::ConfigParseError),
+    DotfileCopyError(dot::DotfileError),
+    ConfigParseError(cfg::ConfigParseError),
 }
 
 impl Error for ManagerError {}
@@ -60,14 +62,14 @@ impl fmt::Display for ManagerError {
     }
 }
 
-impl From<dotfile::dotfile::DotfileError> for ManagerError {
-    fn from(error: dotfile::dotfile::DotfileError) -> ManagerError {
+impl From<dot::DotfileError> for ManagerError {
+    fn from(error: dot::DotfileError) -> ManagerError {
         ManagerError::DotfileCopyError(error)
     }
 }
 
-impl From<config::config::ConfigParseError> for ManagerError {
-    fn from(error: config::config::ConfigParseError) -> ManagerError {
+impl From<cfg::ConfigParseError> for ManagerError {
+    fn from(error: cfg::ConfigParseError) -> ManagerError {
         ManagerError::ConfigParseError(error)
     }
 }

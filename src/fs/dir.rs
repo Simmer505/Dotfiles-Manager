@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::fmt;
 use std::error::Error;
 
-use crate::dotfile::file::{self, File};
+use crate::fs::file::{self, File};
 
 
 

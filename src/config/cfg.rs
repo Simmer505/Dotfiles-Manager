@@ -5,7 +5,7 @@ use std::fmt;
 
 use toml::Table;
 
-use crate::dotfile::dotfile::{self, ManagedDotfile};
+use crate::dotfile::dot::{self, ManagedDotfile};
 
 
 
@@ -104,7 +104,7 @@ pub enum ConfigParseError {
     DotfilesParseError,
     DotfilesArrayParseError,
     DotfilesTableParseError,
-    DotfilesCreateError(dotfile::DotfileError),
+    DotfilesCreateError(dot::DotfileError),
 }
 
 impl Error for ConfigParseError {}
@@ -155,8 +155,8 @@ impl From<toml::de::Error> for ConfigParseError {
     }
 }
 
-impl From<dotfile::DotfileError> for ConfigParseError {
-    fn from(error: dotfile::DotfileError) -> ConfigParseError {
+impl From<dot::DotfileError> for ConfigParseError {
+    fn from(error: dot::DotfileError) -> ConfigParseError {
         ConfigParseError::DotfilesCreateError(error)
     }
 }
