@@ -1,5 +1,6 @@
 use std::fs;
-use std::path::PathBuf;
+use std::env;
+use std::path::{PathBuf, Path};
 use std::error::Error;
 use std::fmt;
 
@@ -22,7 +23,7 @@ impl Config {
 
         let dotfiles = Config::get_dotfiles(&config_file)?;
 
-        let manager_dir = Config::get_manager_dir(&config_file);
+        let manager_dir = Config::get_manager_dir(&config_file)?;
 
         Ok(Config{manager_dir, dotfiles})
     }
@@ -84,15 +85,21 @@ impl Config {
     }
 
 
-    fn get_manager_dir(config: &Table) -> PathBuf {
+    fn get_manager_dir(config: &Table) -> Result<PathBuf, ConfigParseError> {
+
+        let home_dir = PathBuf::from(env::var("HOME")?);
 
         let manager_dir = if config.contains_key("manager_directory") {
-            PathBuf::from(config.get("manager_directory").unwrap().as_str().unwrap())
+            match config.get("manager_directory").unwrap().as_str() {
+                Some(string) if PathBuf::from(string).is_absolute() => PathBuf::from(string),
+                Some(string) => home_dir.join(PathBuf::from(string)),
+                None => return Err(ConfigParseError::InvalidManagerDirectoryError),
+            }
         } else {
-            PathBuf::from("$HOME/.dotfiles")
+            home_dir.join(PathBuf::from(".dotfiles"))
         };
 
-        manager_dir
+        Ok(manager_dir)
     }
 
 }
@@ -105,10 +112,12 @@ pub enum ConfigParseError {
     FileReadError(std::io::Error),
     FromUtfError(std::string::FromUtf8Error),
     TomlParseError(toml::de::Error),
+    ConfigEnvVariableError(std::env::VarError),
     DotfilesCreateError(dot::DotfileError),
     DotfilesParseError,
     DotfilesArrayParseError,
     DotfilesTableParseError,
+    InvalidManagerDirectoryError,
 }
 
 impl Error for ConfigParseError {}
@@ -128,6 +137,9 @@ impl fmt::Display for ConfigParseError {
             ConfigParseError::DotfilesCreateError(create_error) => {
                 write!(f, "{}", create_error)
             },
+            ConfigParseError::ConfigEnvVariableError(env_error) => {
+                write!(f, "{}", env_error)
+            }
             ConfigParseError::DotfilesParseError => {
                 write!(f, "Dotfiles section not found in config file")
             },
@@ -137,6 +149,9 @@ impl fmt::Display for ConfigParseError {
             ConfigParseError::DotfilesTableParseError => {
                 write!(f, "Dotfile table is not valid")
             },
+            ConfigParseError::InvalidManagerDirectoryError => {
+                write!(f, "Manager directory setting in config is not valid")
+            }
         }
     }
 }
@@ -151,6 +166,13 @@ impl From<std::string::FromUtf8Error> for ConfigParseError {
     fn from(error: std::string::FromUtf8Error) -> ConfigParseError {
         ConfigParseError::FromUtfError(error)
     }
+}
+
+impl From<std::env::VarError> for ConfigParseError {
+    fn from(error: std::env::VarError) -> ConfigParseError {
+        ConfigParseError::ConfigEnvVariableError(error) 
+    }
+
 }
 
 impl From<toml::de::Error> for ConfigParseError {
