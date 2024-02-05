@@ -43,7 +43,7 @@ impl Directory {
 
         let errors: Vec<DirError> = io_errors.chain(dir_errors).chain(file_errors).collect();
 
-        Ok(Directory{ files, directories, path: path.to_path_buf(), errors })
+        Ok(Directory{ files, directories, path: path.clone(), errors })
     }
 
 
