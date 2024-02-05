@@ -12,43 +12,58 @@ pub mod args;
 pub mod fs;
 
 
+
+
 pub fn run(args: ArgMatches, config: cfg::Config) -> Result<(), ManagerError> {
 
     let copy_to_sys = args.get_flag("from-git");
 
     let dotfiles = config.dotfiles;
 
-    let valid_dotfiles: Vec<_> = dotfiles.iter().filter_map(|dotfile| match dotfile {
-        Ok(dotfile) => Some(dotfile),
-        Err(e) => {
-            eprintln!("Failed to read a dotfile: {:?}", e);
-            None
-        },
+    let valid_dotfiles: Vec<_> = dotfiles
+        .iter()
+        .filter_map(|dotfile| match dotfile {
+            Ok(dotfile) => Some(dotfile),
+            Err(e) => {
+                eprintln!("Failed to read a dotfile: {:?}", e);
+                None
+            },
     }).collect();
 
-    let errored_dotfiles = valid_dotfiles.iter().filter_map(|dotfile| match dotfile.get_dotfile_dir_errors() {
-        errors if !errors.is_empty() => Some(dotfile),
-        _ => None
-    });
+
+    let errored_dotfiles = valid_dotfiles
+        .iter()
+        .filter_map(|dotfile| 
+            match dotfile.get_dotfile_dir_errors() {
+                errors if !errors.is_empty() => Some(dotfile),
+                _ => None
+            }
+    );
+
 
     let _ = errored_dotfiles.map(|dotfile| {
+
         if let dot::Dotfile::Dir(manager_dotfile) = &dotfile.manager_dotfile {
             println!("Error copying dotfile: {}", manager_dotfile.path.to_str()?);
-            manager_dotfile.errors.iter().for_each(|error| println!("Error: {:?}", error));
+            manager_dotfile.errors
+                .iter()
+                .for_each(|error| println!("Error: {:?}", error));
         };
 
         if let dot::Dotfile::Dir(system_dotfile) = &dotfile.system_dotfile {
             println!("Error copying dotfile: {}", system_dotfile.path.to_str()?);
-            system_dotfile.errors.iter().for_each(|error| println!("Error: {:?}", error));
+            system_dotfile.errors
+                .iter()
+                .for_each(|error| println!("Error: {:?}", error));
         };
 
         Some(())
     });
 
-    let copy_results = valid_dotfiles.iter().map(|dotfile| (dotfile.copy_dotfile(copy_to_sys), dotfile));
+    let copy_results = valid_dotfiles.iter().map(|dotfile| dotfile.copy_dotfile(copy_to_sys));
 
     copy_results.for_each(|result| {
-        match result.0 {
+        match result {
             Err(e) => println!("Failed to copy dotfile: {:?}", e),
             _ => (),
         }
@@ -58,6 +73,8 @@ pub fn run(args: ArgMatches, config: cfg::Config) -> Result<(), ManagerError> {
 
     Ok(())
 }
+
+
 
 
 #[derive(Debug)]

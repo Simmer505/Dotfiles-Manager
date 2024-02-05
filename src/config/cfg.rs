@@ -99,15 +99,16 @@ impl Config {
 
 
 
+
 #[derive(Debug)]
 pub enum ConfigParseError {
     FileReadError(std::io::Error),
     FromUtfError(std::string::FromUtf8Error),
     TomlParseError(toml::de::Error),
+    DotfilesCreateError(dot::DotfileError),
     DotfilesParseError,
     DotfilesArrayParseError,
     DotfilesTableParseError,
-    DotfilesCreateError(dot::DotfileError),
 }
 
 impl Error for ConfigParseError {}

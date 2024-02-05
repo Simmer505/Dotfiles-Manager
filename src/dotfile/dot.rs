@@ -11,7 +11,6 @@ use crate::fs::file;
 
 
 
-
 pub enum Dotfile {
     File(file::File),
     Dir(dir::Directory)
@@ -125,7 +124,6 @@ impl ManagedDotfile {
         Ok(copy_results)
     }
 }
-
 
 
 

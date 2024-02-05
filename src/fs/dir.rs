@@ -87,17 +87,16 @@ impl Directory {
             .iter()
             .map(|file| {
                 file.copy( &dest_path.join( PathBuf::from(&file.filename) ) )
-                })
-            .collect();
+        }).collect();
 
 
         let dir_copy_results = {
             let dirs = self.directories.iter();
 
-            let result = dirs.map(|dir| {
+            let results = dirs.map(|dir| {
                 let dir_name = match dir.path.file_name() {
                     Some(filename) => filename,
-                    None => return Err(DirError::NoDirNameError),
+                    None => return Err(DirError::NoDirectoryNameError),
                 };
 
                 let new_dest_path = dest_path.join(PathBuf::from(dir_name));
@@ -109,7 +108,7 @@ impl Directory {
                 dir.copy(&new_dest_path)
             }).collect::<Vec<_>>();
 
-            result
+            results
         };
 
         let mut copy_errors = Vec::new();
@@ -136,13 +135,12 @@ impl Directory {
 
 
 
-
 #[derive(Debug)]
 pub enum DirError {
     DirCopyMetadataError(std::env::VarError),
     DirIOError(std::io::Error),
     DirFileCopyError(file::FileError),
-    NoDirNameError,
+    NoDirectoryNameError,
 }
 
 impl Error for DirError {}
@@ -159,7 +157,7 @@ impl fmt::Display for DirError {
             DirError::DirFileCopyError(copy_error) => {
                 write!(f, "{}", copy_error)
             },
-            DirError::NoDirNameError => {
+            DirError::NoDirectoryNameError => {
                 write!(f, "Directory does not have a valid name")
             }
         }
