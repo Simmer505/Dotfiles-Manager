@@ -18,9 +18,9 @@ pub struct Config {
 impl Config {
     pub fn parse(path: PathBuf) -> Result<Self, ConfigParseError> {
 
-        let config_file = Config::read_config(path).unwrap();
+        let config_file = Config::read_config(path)?;
 
-        let dotfiles = Config::get_dotfiles(&config_file).unwrap();
+        let dotfiles = Config::get_dotfiles(&config_file)?;
 
         let manager_dir = Config::get_manager_dir(&config_file);
 
@@ -58,7 +58,10 @@ impl Config {
 
         let dotfiles = dotfile_iter.map(|dotfile| {
 
-                let dotfile_table = dotfile.as_table().unwrap();
+                let dotfile_table = match dotfile.as_table() {
+                    Some(table) => table,
+                    None => return Err(ConfigParseError::DotfilesParseError),
+                };
 
                 let manager_path = PathBuf::from(
                     match dotfile_table.get("manager_path") {
