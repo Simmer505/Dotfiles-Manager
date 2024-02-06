@@ -1,10 +1,9 @@
 use std::error::Error;
 use std::fmt;
 
-use clap::ArgMatches;
-
 use crate::config::cfg;
 use crate::dotfile::dot;
+use crate::args::arg;
 
 pub mod config;
 pub mod dotfile;
@@ -14,9 +13,9 @@ pub mod fs;
 
 
 
-pub fn run(args: ArgMatches, config: cfg::Config) -> Result<(), ManagerError> {
+pub fn run(args: arg::Args, config: cfg::Config) -> Result<(), ManagerError> {
 
-    let copy_to_sys = args.get_flag("from-git");
+    let copy_to_sys = args.copy_to_sys;
 
     let dotfiles = config.dotfiles;
 

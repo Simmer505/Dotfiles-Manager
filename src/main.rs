@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use dotfiles_manager::args::parse;
+use dotfiles_manager::args::arg;
 use dotfiles_manager::config::cfg;
 
 
@@ -8,7 +8,7 @@ use dotfiles_manager::config::cfg;
 
 fn main() -> Result<(), dotfiles_manager::ManagerError> {
 
-    let args = parse::parse_args();
+    let args = arg::Args::parse_args();
 
     let program_config = cfg::Config::parse(PathBuf::from("/home/eesim/.config/dotfiles/config"))?;
 
