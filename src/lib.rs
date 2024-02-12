@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt;
 
+use itertools::{Itertools, Either};
+
 use crate::config::cfg;
 use crate::dotfile::dot;
 use crate::args::arg;
@@ -13,62 +15,79 @@ pub mod fs;
 
 
 
-pub fn run(args: arg::Args, config: cfg::Config) -> Result<(), ManagerError> {
+pub fn run(args: arg::Cli, config: cfg::Config) -> Result<(), ManagerError> {
 
-    let copy_to_sys = args.copy_to_sys;
+    let copy_to_sys = args.from;
+
+    let _dry_run = args.dry;
 
     let dotfiles = config.dotfiles;
 
-    let valid_dotfiles: Vec<_> = dotfiles
-        .iter()
-        .filter_map(|dotfile| match dotfile {
-            Ok(dotfile) => Some(dotfile),
-            Err(e) => {
-                eprintln!("Failed to read a dotfile: {:?}", e);
-                None
-            },
-    }).collect();
+    let (valid, unrecoverable_errors): (Vec<_>, Vec<_>) = dotfiles.into_iter().partition_result();
+
+    if unrecoverable_errors.len() > 0 {
+        for error in unrecoverable_errors.into_iter() {
+            eprintln!("{:#?}", error);
+            return Err(ManagerError::DotfileCreateError)
+        }
+    }
 
 
-    let errored_dotfiles = valid_dotfiles
-        .iter()
-        .filter_map(|dotfile| 
-            match dotfile.get_dotfile_dir_errors() {
-                errors if !errors.is_empty() => Some(dotfile),
-                _ => None
+    let (error_free, contains_errors): (Vec<_>, Vec<_>) = valid
+        .into_iter()
+        .partition_map(
+        |dotfile| 
+            match dotfile.get_dir_errors() {
+                errors if errors.is_empty() => Either::Left(dotfile),
+                _ => Either::Right(dotfile),
             }
     );
 
+    if contains_errors.len() > 0 {
+        log_errored_dotfiles(&contains_errors).expect("Dotfile path is invalid"); 
+    }
 
-    let _ = errored_dotfiles.map(|dotfile| {
+    let copy_results = error_free
+        .iter()
+        .map(|dotfile| dotfile.copy_dotfile(copy_to_sys));
 
-        if let dot::Dotfile::Dir(manager_dotfile) = &dotfile.manager_dotfile {
-            println!("Error copying dotfile: {}", manager_dotfile.path.to_str()?);
+
+    for result in copy_results {
+        match result {
+            Err(e) => println!("Failed to copy dotfile: {:?}", e),
+            _ => (),
+        }
+    }
+
+
+
+    Ok(())
+}
+
+fn log_errored_dotfiles(errors: &Vec<dot::ManagedDotfile>) -> Result<(), ManagerError> {
+
+    for error in errors.into_iter() {
+
+        if let dot::Dotfile::Dir(manager_dotfile) = &error.manager_dotfile {
+            let dot_path = manager_dotfile.path.to_str().unwrap();
+            println!("Error copying dotfile: {}", dot_path);
             manager_dotfile.errors
                 .iter()
                 .for_each(|error| println!("Error: {:?}", error));
         };
 
-        if let dot::Dotfile::Dir(system_dotfile) = &dotfile.system_dotfile {
-            println!("Error copying dotfile: {}", system_dotfile.path.to_str()?);
+        if let dot::Dotfile::Dir(system_dotfile) = &error.system_dotfile {
+            let Some(dot_path) = system_dotfile.path.to_str() else {
+                return Err(ManagerError::DotfileInvalidPathError)
+            };
+
+            println!("Error copying dotfile: {}", dot_path);
             system_dotfile.errors
                 .iter()
                 .for_each(|error| println!("Error: {:?}", error));
         };
 
-        Some(())
-    });
-
-    let copy_results = valid_dotfiles.iter().map(|dotfile| dotfile.copy_dotfile(copy_to_sys));
-
-    copy_results.for_each(|result| {
-        match result {
-            Err(e) => println!("Failed to copy dotfile: {:?}", e),
-            _ => (),
-        }
-    });
-
-
+    }
 
     Ok(())
 }
@@ -80,6 +99,8 @@ pub fn run(args: arg::Args, config: cfg::Config) -> Result<(), ManagerError> {
 pub enum ManagerError {
     DotfileCopyError(dot::DotfileError),
     ConfigParseError(cfg::ConfigParseError),
+    DotfileCreateError,
+    DotfileInvalidPathError,
 }
 
 impl Error for ManagerError {}
@@ -92,6 +113,12 @@ impl fmt::Display for ManagerError {
             },
             ManagerError::ConfigParseError(parse_error) => {
                 write!(f, "{}", parse_error)
+            },
+            ManagerError::DotfileCreateError => {
+                write!(f, "Failed to read dotfiles")
+            }
+            ManagerError::DotfileInvalidPathError => {
+                write!(f, "Dotfile has an invalid path")
             }
         }
     }

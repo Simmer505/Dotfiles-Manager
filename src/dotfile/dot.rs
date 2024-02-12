@@ -73,7 +73,7 @@ impl ManagedDotfile {
     }
 
 
-    pub fn get_dotfile_dir_errors(&self) -> Vec<&dir::DirError> {
+    pub fn get_dir_errors(&self) -> Vec<&dir::DirError> {
 
         let manager_errors = if let Dotfile::Dir(dir) = &self.manager_dotfile {
             Some(dir.errors.iter())
